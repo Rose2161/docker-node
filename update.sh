@@ -15,7 +15,7 @@ function usage() {
     - update.sh -s                   # Update all images, skip updating Alpine and Yarn
     - update.sh 8,10                 # Update all variants of version 8 and 10
     - update.sh -s 8                 # Update version 8 and variants, skip updating Alpine and Yarn
-    - update.sh 8 buster-slim,buster # Update only buster's slim and buster variants for version 8
+    - update.sh 8 alpine             # Update only alpine's variants for version 8
     - update.sh -s 8 bullseye        # Update only bullseye variant for version 8, skip updating Alpine and Yarn
     - update.sh . alpine             # Update the alpine variant for all versions
 
@@ -126,7 +126,7 @@ function update_node_version() {
   (
     cp "${template}" "${dockerfile}-tmp"
     local fromprefix=""
-    if [ "${arch}" != "amd64" ]; then
+    if [ "${arch}" != "amd64" ] && [ "${arch}" != "arm64" ]; then
       fromprefix="${arch}\\/"
     fi
 

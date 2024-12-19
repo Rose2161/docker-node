@@ -3,16 +3,16 @@ FROM debian:bookworm-slim
 RUN groupadd --gid 1000 node \
   && useradd --uid 1000 --gid node --shell /bin/bash --create-home node
 
-ENV NODE_VERSION 18.18.2
+ENV NODE_VERSION 18.20.5
 
-RUN ARCH= && dpkgArch="$(dpkg --print-architecture)" \
+RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && case "${dpkgArch##*-}" in \
-      amd64) ARCH='x64';; \
-      ppc64el) ARCH='ppc64le';; \
-      s390x) ARCH='s390x';; \
-      arm64) ARCH='arm64';; \
-      armhf) ARCH='armv7l';; \
-      i386) ARCH='x86';; \
+      amd64) ARCH='x64' OPENSSL_ARCH='linux-x86_64';; \
+      ppc64el) ARCH='ppc64le' OPENSSL_ARCH='linux-ppc64le';; \
+      s390x) ARCH='s390x' OPENSSL_ARCH='linux*-s390x';; \
+      arm64) ARCH='arm64' OPENSSL_ARCH='linux-aarch64';; \
+      armhf) ARCH='armv7l' OPENSSL_ARCH='linux-armv4';; \
+      i386) ARCH='x86' OPENSSL_ARCH='linux-elf';; \
       *) echo "unsupported architecture"; exit 1 ;; \
     esac \
     && set -ex \
@@ -23,13 +23,10 @@ RUN ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && export GNUPGHOME="$(mktemp -d)" \
     # gpg keys listed at https://github.com/nodejs/node#release-keys
     && for key in \
-      4ED778F539E3634C779C87C6D7062848A1AB005C \
-      141F07595B7B3FFE74309A937405533BE57C7D57 \
-      74F12602B6F1C4E913FAA37AD3A89613643B6201 \
+      C0D6248439F1D5604AAFFB4021D900FFDB233756 \
       DD792F5973C6DE52C432CBDAC77ABFA00DDBF2B7 \
-      61FC681DFB92A079F1685E77973F295594EC4689 \
+      CC68F5A3106FF448322E48ED27F5E38D5B0A215F \
       8FCCA13FEF1D0C2E91008E09770F7A9A5AE15600 \
-      C4F0DFFF4E8C1A8236409D08E73BC641CC11F4C8 \
       890C08DB8579162FEE0DF9DB8BEAB4DFCF555EF4 \
       C82FA3AE1CBEDC6BE46B9360C43CEC45C17AB93C \
       108F52B48DB57BB0CC439B2997B01419BD92F80A \
@@ -46,6 +43,8 @@ RUN ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && grep " node-v$NODE_VERSION-linux-$ARCH.tar.xz\$" SHASUMS256.txt | sha256sum -c - \
     && tar -xJf "node-v$NODE_VERSION-linux-$ARCH.tar.xz" -C /usr/local --strip-components=1 --no-same-owner \
     && rm "node-v$NODE_VERSION-linux-$ARCH.tar.xz" SHASUMS256.txt.asc SHASUMS256.txt \
+    # Remove unused OpenSSL headers to save ~34MB. See this NodeJS issue: https://github.com/nodejs/node/issues/46451
+    && find /usr/local/include/node/openssl/archs -mindepth 1 -maxdepth 1 ! -name "$OPENSSL_ARCH" -exec rm -rf {} \; \
     && apt-mark auto '.*' > /dev/null \
     && find /usr/local -type f -executable -exec ldd '{}' ';' \
       | awk '/=>/ { so = $(NF-1); if (index(so, "/usr/local/") == 1) { next }; gsub("^/(usr/)?", "", so); print so }' \
@@ -60,7 +59,7 @@ RUN ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && node --version \
     && npm --version
 
-ENV YARN_VERSION 1.22.19
+ENV YARN_VERSION 1.22.22
 
 RUN set -ex \
   && savedAptMark="$(apt-mark showmanual)" \
@@ -95,7 +94,8 @@ RUN set -ex \
     | xargs -r apt-mark manual \
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
   # smoke test
-  && yarn --version
+  && yarn --version \
+  && rm -rf /tmp/*
 
 COPY docker-entrypoint.sh /usr/local/bin/
 ENTRYPOINT ["docker-entrypoint.sh"]
